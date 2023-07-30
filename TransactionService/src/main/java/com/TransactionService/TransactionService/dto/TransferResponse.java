@@ -11,8 +11,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @NoArgsConstructor
 public class TransferResponse {
-    private String transactionType;
-    private String transferFrom;
-    private String transferTo;
-    private BigDecimal amount;
+    private String responseCode;
+    private String responseMessage;
+    private TransferData transferData;
 }

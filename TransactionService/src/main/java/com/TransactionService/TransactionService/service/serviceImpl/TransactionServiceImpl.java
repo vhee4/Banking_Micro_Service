@@ -24,8 +24,6 @@ public class TransactionServiceImpl implements TransactionService {
     private final WebClient webClient;
 
 
-
-
     @Override
     public void saveTransaction(TransactionDto transactionDto) {
         Transaction newTransaction = Transaction.builder()
@@ -39,14 +37,14 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Cacheable(cacheNames = "fetchAllTransactions")
-    public List<TransactionDto> fetchAllTransactionsByUser(String accountNumber){
+    public List<TransactionDto> fetchAllTransactionsByUser(String accountNumber) {
         List<Transaction> transactionList = transactionRepository.findAll();
-        return transactionList.stream().map(list->TransactionDto.builder()
-                        .transactionType(list.getTransactionType())
-                        .accountNumber(list.getAccountNumber())
-                        .amount(list.getAmount())
+        return transactionList.stream().map(list -> TransactionDto.builder()
+                .transactionType(list.getTransactionType())
+                .accountNumber(list.getAccountNumber())
+                .amount(list.getAmount())
 //                        .transactionDate(list.getCreatedAt())
-                        .build()).collect(Collectors.toList());
+                .build()).collect(Collectors.toList());
     }
 
 //    public List<TransactionDto> getAllTransactionsByDate(String date){
@@ -79,7 +77,7 @@ public class TransactionServiceImpl implements TransactionService {
 
     public UserResponse credit(TransactionRequest transactionRequest) {
         UserData user = retrieveUser(transactionRequest.getAccountNumber());
-        if(user==null){
+        if (user == null) {
             return UserResponse.builder()
                     .responseCode(ResponseUtils.USER_NOT_FOUND_CODE)
                     .responseMessage(ResponseUtils.USER_NOT_FOUND_MESSAGE)
@@ -116,26 +114,13 @@ public class TransactionServiceImpl implements TransactionService {
                         .accountNumber(user.getAccountNumber())
                         .build())
                 .build();
-
-
-
-//        String accountDetails = savedUser.getFirstName() + " " + savedUser.getLastName() + " "+ savedUser.getOtherName() + "\nAccount Number: " + savedUser.getAccountNumber();
-
-        //Send email alert
-//        EmailDetails message = EmailDetails.builder()
-//                .recipientEmail(savedUser.getEmail())
-//                .subject("ACCOUNT DETAILS")
-//                .messageBody("Congratulations! \nYour account has been successfully credited! \nKindly find your details below: \n" + "Account Number : " + ResponseUtils.truncatedAccountNumber(transactionRequest.getAccountNumber())  + "\nCredited amount: " + transactionRequest.getAmount()  + "\nAccount Balance: " + savedUser.getAccountBalance())
-//                .build();
-//        emailService.sendSimpleEmail(message);
     }
 
 
     @Override
     public UserResponse debit(TransactionRequest transactionRequest) {
-//        User debitUser = userRepository.findByAccountNumber(transactionRequest.getAccountNumber());
         UserData user = retrieveUser(transactionRequest.getAccountNumber());
-        if(user==null){
+        if (user == null) {
             return UserResponse.builder()
                     .responseCode(ResponseUtils.USER_NOT_FOUND_CODE)
                     .responseMessage(ResponseUtils.USER_NOT_FOUND_MESSAGE)
@@ -156,14 +141,11 @@ public class TransactionServiceImpl implements TransactionService {
         transactionDto.setAmount(transactionRequest.getAmount());
         saveTransaction(transactionDto);
 
-//        Send email alert
-//        EmailDetails message = EmailDetails.builder()
-//                .recipientEmail(savedUser.getEmail())
-//                .subject("ACCOUNT DETAILS")
-//                .messageBody("Congratulations! \nYour account has been successfully debited! \nKindly find your details below: \n" + "Account Number : " + ResponseUtils.truncatedAccountNumber(transactionRequest.getAccountNumber())  + "\nDebited amount: " + transactionRequest.getAmount()  + "\nAccount Balance: " + savedUser.getAccountBalance())
-//                .build();
-//        emailService.sendSimpleEmail(message);
-
+        TransactionRequest transactionRequest1 = TransactionRequest.builder()
+                .accountNumber(user.getAccountNumber())
+                .amount(transactionRequest.getAmount())
+                .build();
+        debitAndUpdateUserBalance(transactionRequest1);
         return UserResponse.builder()
                 .responseCode(ResponseUtils.SUCCESSFUL_TRANSACTION_CODE)
                 .responseMessage(ResponseUtils.ACCOUNT_DEBITED)
@@ -176,50 +158,51 @@ public class TransactionServiceImpl implements TransactionService {
                 .build();
     }
 
-//    public UserResponse transfer(TransferRequest transferRequest){
-//        if(!userRepository.existsByAccountNumber(transferRequest.getRecipientAccountNumber()) || !userRepository.existsByAccountNumber(transferRequest.getSenderAccountNumber())){
-//            return UserResponse.builder()
-//                    .responseCode(ResponseUtils.USER_NOT_FOUND_CODE)
-//                    .responseMessage(ResponseUtils.USER_NOT_FOUND_MESSAGE)
-//                    .data(null)
-//                    .build();
-//        }
-//        User recipientAccount = userRepository.findByAccountNumber(transferRequest.getRecipientAccountNumber());
-//        User senderAccount = userRepository.findByAccountNumber(transferRequest.getSenderAccountNumber());
-//        if(transferRequest.getAmount().compareTo(senderAccount.getAccountBalance()) > 0){
-//            return UserResponse.builder()
-//                    .responseCode(ResponseUtils.UNSUCCESSFUL_TRANSACTION_CODE)
-//                    .responseMessage(ResponseUtils.INSUFFICIENT_FUNDS)
-//                    .data(null)
-//                    .build();
-//        }
-//        senderAccount.setAccountBalance(senderAccount.getAccountBalance().subtract(transferRequest.getAmount()));
-//        userRepository.save(senderAccount);
-//        TransactionDto senderTransaction = new TransactionDto();
-//        senderTransaction.setTransactionType("debit");
-//        senderTransaction.setAccountNumber(transferRequest.getSenderAccountNumber());
-//        senderTransaction.setAmount(transferRequest.getAmount());
-//        transactionService.saveTransaction(senderTransaction);
-//
-//        recipientAccount.setAccountBalance(recipientAccount.getAccountBalance().add(transferRequest.getAmount()));
-//        userRepository.save(recipientAccount);
-//        TransactionDto recipientTransaction = new TransactionDto();
-//        recipientTransaction.setTransactionType("credit");
-//        recipientTransaction.setAccountNumber(transferRequest.getRecipientAccountNumber());
-//        recipientTransaction.setAmount(transferRequest.getAmount());
-//        transactionService.saveTransaction(recipientTransaction);
-////        List<UserResponse> responses = new ArrayList<>();
-//
-//        return UserResponse.builder()
-//                .responseCode(ResponseUtils.SUCCESSFUL_TRANSACTION_CODE)
-//                .responseMessage(ResponseUtils.ACCOUNT_DEBITED)
-//                .data(Data.builder()
-//                        .accountBalance(senderAccount.getAccountBalance())
-//                        .accountNumber(ResponseUtils.truncatedAccountNumber(transferRequest.getSenderAccountNumber()))
-//                        .accountName(senderAccount.getFirstName() + " " + senderAccount.getLastName() + " " + senderAccount.getOtherName())
-//                        .build())
-//                .build();
-//    }
+    @Override
+    public TransferResponse transfer(TransferRequest transferRequest){
+        UserData sender = retrieveUser(transferRequest.getSenderAccountNumber());
+        UserData recipient = retrieveUser(transferRequest.getRecipientAccountNumber());
+        if(sender==null || recipient==null){
+            return TransferResponse.builder()
+                    .responseCode(ResponseUtils.USER_NOT_FOUND_CODE)
+                    .responseMessage(ResponseUtils.USER_NOT_FOUND_MESSAGE)
+                    .transferData(null)
+                    .build();
+        }
+        if(transferRequest.getAmount().compareTo(sender.getAccountBalance()) > 0){
+            return TransferResponse.builder()
+                    .responseCode(ResponseUtils.UNSUCCESSFUL_TRANSACTION_CODE)
+                    .responseMessage(ResponseUtils.INSUFFICIENT_FUNDS)
+                    .transferData(null)
+                    .build();
+        }
+
+        TransactionRequest creditRequest = new TransactionRequest(recipient.getAccountNumber(), transferRequest.getAmount());
+        TransactionRequest debitRequest = new TransactionRequest(sender.getAccountNumber(), transferRequest.getAmount());
+
+        UserResponse debitResponse = debit(debitRequest);
+        if(!debitResponse.getResponseCode().equalsIgnoreCase(ResponseUtils.SUCCESSFUL_TRANSACTION_CODE)){
+            return TransferResponse.builder()
+                    .responseCode(ResponseUtils.UNSUCCESSFUL_TRANSACTION_CODE)
+                    .responseMessage("Unsuccessful Transaction")
+                    .transferData(null)
+                    .build();
+        }
+        credit(creditRequest);
+
+        return TransferResponse.builder()
+                .responseCode(ResponseUtils.SUCCESSFUL_TRANSACTION_CODE)
+                .responseMessage(ResponseUtils.ACCOUNT_DEBITED)
+                .transferData(TransferData.builder()
+                        .SendersAccountNumber(sender.getAccountNumber())
+                        .SendersAccountName(sender.getAccountName())
+                        .RecipientsAccountNumber(recipient.getAccountNumber())
+                        .amountTransferred(transferRequest.getAmount())
+                        .RecipientsAccountName(recipient.getAccountName())
+                        .SendersAccountBalance(debitResponse.getUserData().getAccountBalance())
+                        .build())
+                .build();
+    }
 
     private UserData retrieveUser(String accountNumber) {
         UserResponse response = webClient.get()
@@ -240,6 +223,15 @@ public class TransactionServiceImpl implements TransactionService {
     private UserResponse creditAndUpdateUserBalance(TransactionRequest transactionRequest) {
         return webClient.post()
                 .uri("http://localhost:8080/api/users/credit-and-update-accountBalance")
+                .body(BodyInserters.fromValue(transactionRequest))
+                .retrieve()
+                .bodyToMono(UserResponse.class)
+                .block();
+    }
+
+    private UserResponse debitAndUpdateUserBalance(TransactionRequest transactionRequest) {
+        return webClient.post()
+                .uri("http://localhost:8080/api/users/debit-and-update-accountBalance")
                 .body(BodyInserters.fromValue(transactionRequest))
                 .retrieve()
                 .bodyToMono(UserResponse.class)
